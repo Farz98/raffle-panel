@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Admin Login</title>
+    <meta charset="UTF-8">
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f8;
+        }
+
+        .box {
+            width: 360px;
+            margin: 120px auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, .1);
+        }
+
+        input,
+        button {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+        }
+
+        button {
+            background: #3498db;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        /* Loader */
+        #loader {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .spinner {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loader -->
+    <div id="loader">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="box">
+        <h2>Admin Login</h2>
+        <input id="email" placeholder="Email">
+        <input id="password" type="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDowv99kR6eCENVMaA1cyPAhB-uioHTKdo",
+            authDomain: "raffle-fd694.firebaseapp.com",
+            projectId: "raffle-fd694"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        // Loader helpers
+        function showLoader() { document.getElementById('loader').style.display = 'flex'; }
+        function hideLoader() { document.getElementById('loader').style.display = 'none'; }
+
+        function login() {
+            showLoader();
+            auth.signInWithEmailAndPassword(email.value, password.value)
+                .then((cred) => {
+                    const user = cred.user;
+
+                    localStorage.setItem("adminUser", JSON.stringify({
+                        uid: user.uid,
+                        email: user.email,
+                        loggedAt: Date.now()
+                    }));
+                    hideLoader();
+
+                    window.location.href = "dashboard.html";
+                })
+                .catch(() => {
+                    hideLoader();
+                    alert("Invalid credentials");
+                });
+        }
+    </script>
+
+</body>
+
+</html>

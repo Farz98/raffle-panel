@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Raffle Admin Dashboard</title>
+    <meta charset="UTF-8" />
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f8;
+            padding: 20px;
+        }
+
+        .cards {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            flex: 1;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            background: #fff;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 6px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        canvas {
+            background: #fff;
+            padding: 10px;
+            margin-top: 20px;
+            max-height: 250px;
+        }
+
+        input,
+        select,
+        button {
+            padding: 6px;
+            margin: 4px;
+        }
+
+        h3 {
+            margin-top: 30px;
+        }
+
+        /* Loader */
+        #loader {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .spinner {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .panel {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        button.small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Raffle Admin Dashboard</h1>
+
+    <!-- Loader -->
+    <div id="loader">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="app">
+
+        <!-- SUMMARY -->
+        <div class="cards">
+            <div class="card">
+                <h2 id="todayCount">0</h2>
+                <p>Today</p>
+            </div>
+            <div class="card">
+                <h2 id="weekCount">0</h2>
+                <p>Last 7 days</p>
+            </div>
+            <div class="card">
+                <h2 id="agentCount">0</h2>
+                <p>Active Agents</p>
+            </div>
+            <div class="card">
+                <h2 id="userCount">0</h2>
+                <p>Total Users</p>
+            </div>
+        </div>
+
+        <!-- CHARTS -->
+        <canvas id="dailyChart"></canvas>
+        <canvas id="agentChart"></canvas>
+
+        <!-- ===================== ADD AGENT ===================== -->
+        <div class="panel">
+            <h3>➕ Add Agent</h3>
+            <input id="agentName" placeholder="Agent Name">
+            <input id="agentEmail" placeholder="Email">
+            <input id="agentPhone" placeholder="Phone">
+            <input id="agentPassword" type="password" placeholder="Password">
+            <button onclick="addAgent()">Create Agent</button>
+        </div>
+
+
+        <!-- ===================== USER LIST ===================== -->
+        <div class="panel">
+            <input id="userSearch" placeholder="Search name / email / phone" onkeyup="searchUsers()" />
+            <h3>👤 Users</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userTable"></tbody>
+            </table>
+
+            <div style="margin-top:10px;text-align:center;">
+                <button onclick="prevUserPage()">Prev</button>
+                <span id="userPageInfo"></span>
+                <button onclick="nextUserPage()">Next</button>
+            </div>
+        </div>
+
+
+        <!-- ===================== AGENT LIST ===================== -->
+        <div class="panel">
+            <h3>👥 Agents</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="agentTable"></tbody>
+            </table>
+
+            <div style="margin-top:10px;text-align:center;">
+                <button onclick="prevAgentPage()">Prev</button>
+                <span id="agentPageInfo"></span>
+                <button onclick="nextAgentPage()">Next</button>
+            </div>
+        </div>
+
+        <!-- REPORTS -->
+        <h3>Reports</h3>
+        <label>Agent:</label>
+        <select id="agentSelect">
+            <option value="">All</option>
+        </select>
+        <label>Start:</label><input type="date" id="startDate">
+        <label>End:</label><input type="date" id="endDate">
+        <label>Winning Digit:</label><input id="winningDigit" maxlength="3" placeholder="Optional">
+        <button onclick="filterEntries()">Generate</button>
+        <button onclick="exportExcel()">Export Excel</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Raffle ID</th>
+                    <th>Agent</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Digits</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody id="entryTable"></tbody>
+        </table>
+
+    </div>
+
+    <script>
+        var adminUser = "";
+        const firebaseConfig = {
+            apiKey: "AIzaSyDowv99kR6eCENVMaA1cyPAhB-uioHTKdo",
+            authDomain: "raffle-fd694.firebaseapp.com",
+            projectId: "raffle-fd694"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+
+        // Loader helpers
+        function showLoader() { document.getElementById('loader').style.display = 'flex'; }
+        
+        function hideLoader() { document.getElementById('loader').style.display = 'none'; }
+
+            adminUser = JSON.parse(localStorage.getItem("adminUser"));
+
+            if (!adminUser || !adminUser) {
+                localStorage.removeItem("adminUser");
+                window.location.href = "index.html";
+            }
+
+
+        // Utilities
+        function startOfToday() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+        function startOfWeek() { const d = new Date(); d.setDate(d.getDate() - 6); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); } // last 7 days
+        function generateOtherPermutations(digits) {
+            const result = new Set();
+            function permute(chars, l, r) {
+                if (l === r) { result.add(chars.join("")); } else { for (let i = l; i <= r; i++) { [chars[l], chars[i]] = [chars[i], chars[l]]; permute(chars, l + 1, r);[chars[l], chars[i]] = [chars[i], chars[l]]; } }
+            }
+            permute(digits.split(""), 0, digits.length - 1);
+            result.delete(digits); result.delete(digits.split("").reverse().join(""));
+            return Array.from(result);
+        }
+
+        let reportData = {};
+
+        // Load dashboard stats
+        async function loadDashboard() {
+            if (!adminUser) {
+                alert("Admin not authenticated");
+                return;
+            }
+            await loadAgents();
+            loadAgentTable();
+            liveStats();
+            await loadUserTable();
+        }
+
+        /* ================= USER LIST + PAGINATION ================= */
+        let userDocs = [], userPage = 0;
+        const userPageSize = 5;
+
+        async function loadUserTable() {
+            showLoader();
+            const snap = await db.collection("users")
+                .orderBy("createdAt", "desc")
+                .get();
+
+            userDocs = snap.docs;
+            userPage = 0;
+            renderUserPage();
+            hideLoader();
+        }
+
+        function renderUserPage() {
+            userTable.innerHTML = "";
+            const start = userPage * userPageSize;
+            const end = start + userPageSize;
+
+            userDocs.slice(start, end).forEach((d, i) => {
+                const u = d.data();
+                userTable.innerHTML += `
+        <tr>
+            <td>${start + i + 1}</td>
+            <td>${u.name || ""}</td>
+            <td>${u.email || ""}</td>
+            <td>${u.phone || ""}</td>
+            <td>
+                <button class="small" onclick="deleteUser('${d.id}')">Delete</button>
+            </td>
+        </tr>`;
+            });
+
+            userPageInfo.innerText =
+                `Page ${userPage + 1} / ${Math.ceil(userDocs.length / userPageSize)}`;
+        }
+
+        function nextUserPage() {
+            if ((userPage + 1) * userPageSize < userDocs.length) {
+                userPage++;
+                renderUserPage();
+            }
+        }
+
+        function prevUserPage() {
+            if (userPage > 0) {
+                userPage--;
+                renderUserPage();
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm("Delete this user?")) return;
+            await db.collection("users").doc(id).delete();
+            await loadUserTable();
+        }
+
+        function searchUsers() {
+            const q = document.getElementById("userSearch").value.toLowerCase();
+            userTable.innerHTML = "";
+
+            const filtered = userDocs.filter(d => {
+                const u = d.data();
+                return (
+                    (u.name || "").toLowerCase().includes(q) ||
+                    (u.email || "").toLowerCase().includes(q) ||
+                    (u.phone || "").toLowerCase().includes(q)
+                );
+            });
+
+            const start = userPage * userPageSize;
+            const end = start + userPageSize;
+
+            filtered.slice(start, end).forEach((d, i) => {
+                const u = d.data();
+                userTable.innerHTML += `
+        <tr>
+            <td>${start + i + 1}</td>
+            <td>${u.name || ""}</td>
+            <td>${u.email || ""}</td>
+            <td>${u.phone || ""}</td>
+            <td>
+                <button class="small" onclick="deleteUser('${d.id}')">Delete</button>
+            </td>
+        </tr>`;
+            });
+
+            userPageInfo.innerText =
+                `Showing ${filtered.length} users`;
+        }
+
+        /* ================= ADD AGENT ================= */
+        async function addAgent() {
+            const name = agentName.value.trim();
+            const email = agentEmail.value.trim();
+            const phone = agentPhone.value.trim();
+            const password = agentPassword.value.trim();
+
+            if (!name || !email || !password) {
+                alert("Name, Email and Password required");
+                return;
+            }
+
+            showLoader();
+            try {
+                const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
+                const secondaryAuth = secondaryApp.auth();
+                const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+                await db.collection("agents").doc(cred.user.uid).set({
+                    id: cred.user.uid,
+                    name, email, phone,
+                    role: "agent",
+                    isActive: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                agentName.value = agentEmail.value = agentPhone.value = agentPassword.value = "";
+                await loadAgents();
+                await loadAgentTable();   // 🔹 refresh list
+                alert("Agent created successfully");
+            } catch (e) {
+                alert(e.message);
+            }
+            hideLoader();
+        }
+
+        // Live stats
+        function liveStats() {
+            db.collection("raffles").onSnapshot(snap => {
+                let today = 0, week = 0; let agents = {}; let daily = {};
+                snap.docs.forEach(d => {
+                    const data = d.data(); const date = data.createdAt?.toDate?.(); if (!date) return;
+                    if (date >= startOfToday()) today++; if (date >= startOfWeek()) week++;
+                    if (date >= startOfToday()) agents[data.agentName] = (agents[data.agentName] || 0) + 1;
+                    const key = date.toISOString().slice(0, 10); daily[key] = (daily[key] || 0) + 1;
+                });
+                todayCount.innerText = today; weekCount.innerText = week;
+                renderCharts(daily, agents);
+            });
+            db.collection("users").get().then(snap => userCount.innerText = snap.size);
+            db.collection("agents").get().then(snap => agentCount.innerText = snap.size);
+        }
+
+        // Charts
+        function renderCharts(daily, agents) {
+            new Chart(dailyChart, { type: "line", data: { labels: Object.keys(daily), datasets: [{ label: "Entries", data: Object.values(daily) }] } });
+            new Chart(agentChart, { type: "bar", data: { labels: Object.keys(agents), datasets: [{ label: "Today", data: Object.values(agents) }] } });
+        }
+
+        /* ================= AGENT DROPDOWN ================= */
+        async function loadAgents() {
+            const snap = await db.collection("agents").get();
+
+            agentSelect.innerHTML = '<option value="">All</option>';
+            snap.docs.forEach(d => {
+                agentSelect.innerHTML += `<option value="${d.id}">${d.data().name}</option>`;
+            });
+        }
+
+        /* ================= AGENT LIST + PAGINATION ================= */
+        let agentDocs = [], agentPage = 0;
+        const pageSize = 5;
+
+        async function loadAgentTable() {
+            showLoader();
+            const snap = await db.collection("agents")
+                .orderBy("createdAt", "desc").get();
+
+            agentDocs = snap.docs;
+            agentPage = 0;
+            renderAgentPage();
+            hideLoader();
+        }
+
+        function renderAgentPage() {
+            agentTable.innerHTML = "";
+            const start = agentPage * pageSize;
+            const end = start + pageSize;
+
+            agentDocs.slice(start, end).forEach((d, i) => {
+                const a = d.data();
+                agentTable.innerHTML += `
+      <tr>
+        <td>${start + i + 1}</td>
+        <td>${a.name || ""}</td>
+        <td>${a.email}</td>
+        <td>${a.phone || ""}</td>
+        <td>${a.isActive === false ? "Inactive" : "Active"}</td>
+        <td>
+          <button class="small" onclick="resetPassword('${a.email}')">Reset</button>
+          <button class="small" onclick="toggleAgent('${d.id}', ${a.isActive !== false})">
+  ${a.isActive === false ? 'Enable' : 'Disable'}
+</button>
+        </td>
+      </tr>`;
+            });
+
+            agentPageInfo.innerText =
+                `Page ${agentPage + 1} / ${Math.ceil(agentDocs.length / pageSize)}`;
+        }
+
+        function nextAgentPage() {
+            if ((agentPage + 1) * pageSize < agentDocs.length) {
+                agentPage++; renderAgentPage();
+            }
+        }
+        function prevAgentPage() {
+            if (agentPage > 0) {
+                agentPage--; renderAgentPage();
+            }
+        }
+
+        /* ================= AGENT ACTIONS ================= */
+        function resetPassword(email) {
+            auth.sendPasswordResetEmail(email)
+                .then(() => alert("Password reset email sent"));
+        }
+
+        async function deleteAgent(id) {
+            if (!confirm("Disable this agent?")) return;
+            await db.collection("agents").doc(id).update({ isActive: false });
+            await loadAgents();
+            await loadAgentTable();
+        }
+
+        async function toggleAgent(agentId, currentlyActive) {
+            const action = currentlyActive ? "Disable" : "Enable";
+
+            if (!confirm(`${action} this agent?`)) return;
+
+            showLoader();
+            try {
+                await db.collection("agents").doc(agentId).update({
+                    isActive: !currentlyActive
+                });
+
+                await loadAgents();
+                await loadAgentTable();
+
+                alert(`Agent ${action}d successfully`);
+            } catch (e) {
+                alert("Failed to update agent status");
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // Filter & preview
+        async function filterEntries() {
+            showLoader();
+            try {
+                const agent = agentSelect.value;
+
+                let start = startDate.value ? new Date(startDate.value) : null;
+                let end = endDate.value ? new Date(endDate.value) : null;
+
+                // ✅ Normalize date range
+                if (start) {
+                    start.setHours(0, 0, 0, 0); // start of day
+                }
+                if (end) {
+                    end.setHours(23, 59, 59, 999); // end of day
+                }
+
+                entryTable.innerHTML = "";
+                reportData = {};
+
+                let ref;
+                ref = db.collection("raffles");
+                if (agent) ref = ref.where("agentId", "==", agent);
+
+
+                const snap = await ref.get();
+
+                snap.docs.forEach(d => {
+                    const data = d.data();
+                    const date = data.createdAt?.toDate?.();
+
+                    if (!date) return;
+
+                    // ✅ Proper date range check
+                    if (start && date < start) return;
+                    if (end && date > end) return;
+
+                    reportData[data.raffleId] = data;
+                });
+
+                renderPreview();
+
+            } catch (e) {
+                console.error(e);
+                alert("Error loading entries");
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function renderPreview() {
+            const winningDigitVal = winningDigit.value.trim();
+            entryTable.innerHTML = "";
+            let serial = 1;
+
+            if (!winningDigitVal) {
+                Object.values(reportData)
+                    .sort((a, b) => a.raffleId.localeCompare(b.raffleId))
+                    .forEach(row => {
+                        const date = row.createdAt?.toDate?.() || new Date();
+                        entryTable.innerHTML += `<tr>
+        <td>${serial++}</td>
+        <td>${row.raffleId}</td>
+        <td>${row.agentName}</td>
+        <td>${row.name || ""}</td>
+        <td>${row.phone || ""}</td>
+        <td>${row.digits || ""}</td>
+        <td>${date.toLocaleString()}</td>
+      </tr>`;
+                    });
+            } else {
+                const exact = [], reverse = [], others = [];
+                const rev = winningDigitVal.split("").reverse().join("");
+                const otherPerms = generateOtherPermutations(winningDigitVal);
+
+                Object.values(reportData)
+                    .sort((a, b) => a.raffleId.localeCompare(b.raffleId))
+                    .forEach(row => {
+                        const d = row.digits;
+                        if (d === winningDigitVal) exact.push(row);
+                        else if (d === rev) reverse.push(row);
+                        else if (otherPerms.includes(d)) others.push(row);
+                    });
+
+                function renderSection(title, data) {
+                    if (data.length === 0) return;
+                    entryTable.innerHTML += `<tr><td colspan="8" style="background:#eee;font-weight:bold;">${title}</td></tr>`;
+                    data.forEach(row => {
+                        const date = row.createdAt?.toDate?.() || new Date();
+                        entryTable.innerHTML += `<tr>
+          <td>${serial++}</td>
+          <td>${row.raffleId}</td>
+          <td>${row.drawId}</td>
+          <td>${row.agentName}</td>
+          <td>${row.name || ""}</td>
+          <td>${row.phone || ""}</td>
+          <td>${row.digits || ""}</td>
+          <td>${date.toLocaleString()}</td>
+        </tr>`;
+                    });
+                }
+
+                renderSection("Winner (Exact Match)", exact);
+                renderSection("Runner-Up (Reverse)", reverse);
+                renderSection("Other Combinations", others);
+            }
+        }
+
+        // Excel export
+        function exportExcel() {
+            showLoader();
+            try {
+                const winningDigitVal = winningDigit.value.trim();
+                const wb = XLSX.utils.book_new();
+                let serial = 1;
+                if (winningDigitVal) {
+                    const exact = [], reverse = [], others = [];
+                    const rev = winningDigitVal.split("").reverse().join("");
+                    const otherPerms = generateOtherPermutations(winningDigitVal);
+
+                    Object.values(reportData)
+                        .sort((a, b) => a.raffleId.localeCompare(b.raffleId))
+                        .forEach(row => {
+                            const d = row.digits;
+                            const obj = { Serial: serial++, ...row };
+                            if (d === winningDigitVal) exact.push(obj);
+                            else if (d === rev) reverse.push(obj);
+                            else if (otherPerms.includes(d)) others.push(obj);
+                        });
+
+                    if (exact.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exact), "Winner");
+                    if (reverse.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(reverse), "Runner-Up");
+                    if (others.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(others), "Other Combinations");
+                } else {
+                    const allData = Object.values(reportData).map((row) => ({ Serial: serial++, ...row }));
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allData), "All Entries");
+                }
+                XLSX.writeFile(wb, "raffle_report.xlsx");
+            } catch (e) { console.error(e); alert("Error exporting Excel"); }
+            finally { hideLoader(); }
+        }
+
+        // Load dashboard on page load
+        window.onload = loadDashboard;
+
+        function logout() {
+            auth.signOut().then(() => {
+                localStorage.removeItem("adminUser");
+                window.location.href = "index.html";
+            });
+        }
+    </script>
+
+</body>
+
+</html>
