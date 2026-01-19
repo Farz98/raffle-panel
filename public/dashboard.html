@@ -163,7 +163,8 @@
 
         <!-- ===================== USER LIST ===================== -->
         <div class="panel">
-            <input id="userSearch" placeholder="Search name / email / phone" onkeyup="searchUsers()" />
+            <input id="userSearch" placeholder="Search name / email / phone" />
+            <button onclick="searchUsers()">Search</button>
             <h3>👤 Users</h3>
 
             <table>
@@ -244,7 +245,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-        import { getFirestore, collection, getCountFromServer, query, where, getDocs, orderBy, doc, deleteDoc, updateDoc, serverTimestamp, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+        import { getFirestore, collection, getCountFromServer, query, where, getDocs, orderBy, doc, deleteDoc, updateDoc, serverTimestamp, limit, startAfter, or } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
         import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js";
 
         // ---------------- CONFIG ----------------
@@ -310,6 +311,47 @@
             result.delete(digits.split("").reverse().join(""));
             return Array.from(result);
         }
+
+        window.searchUsers = async function (page = 1) {
+            const value = document.getElementById("userSearch").value.trim();
+            userDocs = null;
+            showLoader();
+
+            let q = query(
+                collection(db, "users"),
+                orderBy("createdAt", "desc"),
+                or(
+                    where("name", "==", value),
+                    where("phone", "==", value),
+                    where("email", "==", value),
+                ),
+                limit(userPageSize)
+            );
+
+            if (lastUserDoc && page > 1) {
+                q = query(
+                    collection(db, "users"),
+                    orderBy("createdAt", "desc"),
+                    startAfter(lastUserDoc),
+                    or(
+                        where("name", "==", value),
+                        where("phone", "==", value),
+                        where("email", "==", value),
+                    ),
+                    limit(userPageSize)
+                );
+            }
+
+            const snap = await getDocs(q);
+            userDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // Track the last document for the next page
+            lastUserDoc = snap.docs[snap.docs.length - 1];
+
+            renderUserPage();
+            hideLoader();
+
+        };
 
         // ---------------- DASHBOARD COUNTS ----------------
         window.loadDashboard = async function () {
