@@ -150,10 +150,6 @@
             </div>
         </div>
 
-        <!-- CHARTS -->
-        <canvas id="dailyChart"></canvas>
-        <canvas id="agentChart"></canvas>
-
         <!-- ===================== ADD AGENT ===================== -->
         <div class="panel">
             <h3>➕ Add Agent</h3>
@@ -222,6 +218,8 @@
         <select id="agentSelect">
             <option value="">All</option>
         </select>
+        <label>User Phone:</label>
+        <input type="text" id="userPhone" placeholder="Enter phone number">
         <label>Start:</label><input type="date" id="startDate">
         <label>End:</label><input type="date" id="endDate">
         <label>Winning Digit:</label><input id="winningDigit" maxlength="3" placeholder="Optional">
@@ -244,360 +242,297 @@
 
     </div>
 
-    <script>
-        var adminUser = "";
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
+        import { getFirestore, collection, getCountFromServer, query, where, getDocs, orderBy, doc, deleteDoc, updateDoc, serverTimestamp, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+        import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js";
+
+        // ---------------- CONFIG ----------------
         const firebaseConfig = {
             apiKey: "AIzaSyDowv99kR6eCENVMaA1cyPAhB-uioHTKdo",
             authDomain: "raffle-fd694.firebaseapp.com",
             projectId: "raffle-fd694"
         };
 
-        firebase.initializeApp(firebaseConfig);
+        // Initialize
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
 
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+        // ---------------- LOADER ----------------
+        window.showLoader = () => document.getElementById('loader').style.display = 'flex';
+        window.hideLoader = () => document.getElementById('loader').style.display = 'none';
 
-
-        // Loader helpers
-        function showLoader() { document.getElementById('loader').style.display = 'flex'; }
-        
-        function hideLoader() { document.getElementById('loader').style.display = 'none'; }
-
-            adminUser = JSON.parse(localStorage.getItem("adminUser"));
-
-            if (!adminUser || !adminUser) {
-                localStorage.removeItem("adminUser");
-                window.location.href = "index.html";
-            }
-
-
-        // Utilities
-        function startOfToday() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
-        function startOfWeek() { const d = new Date(); d.setDate(d.getDate() - 6); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); } // last 7 days
-        function generateOtherPermutations(digits) {
-            const result = new Set();
-            function permute(chars, l, r) {
-                if (l === r) { result.add(chars.join("")); } else { for (let i = l; i <= r; i++) { [chars[l], chars[i]] = [chars[i], chars[l]]; permute(chars, l + 1, r);[chars[l], chars[i]] = [chars[i], chars[l]]; } }
-            }
-            permute(digits.split(""), 0, digits.length - 1);
-            result.delete(digits); result.delete(digits.split("").reverse().join(""));
-            return Array.from(result);
+        // ---------------- GLOBALS ----------------
+        let adminUser = JSON.parse(localStorage.getItem("adminUser"));
+        if (!adminUser) {
+            localStorage.removeItem("adminUser");
+            window.location.href = "index.html";
         }
 
-        let reportData = {};
-
-        // Load dashboard stats
-        async function loadDashboard() {
-            if (!adminUser) {
-                alert("Admin not authenticated");
-                return;
-            }
-            await loadAgents();
-            loadAgentTable();
-            liveStats();
-            await loadUserTable();
-        }
-
-        /* ================= USER LIST + PAGINATION ================= */
+        let reportData = [];
         let userDocs = [], userPage = 0;
         const userPageSize = 5;
-
-        async function loadUserTable() {
-            showLoader();
-            const snap = await db.collection("users")
-                .orderBy("createdAt", "desc")
-                .get();
-
-            userDocs = snap.docs;
-            userPage = 0;
-            renderUserPage();
-            hideLoader();
-        }
-
-        function renderUserPage() {
-            userTable.innerHTML = "";
-            const start = userPage * userPageSize;
-            const end = start + userPageSize;
-
-            userDocs.slice(start, end).forEach((d, i) => {
-                const u = d.data();
-                userTable.innerHTML += `
-        <tr>
-            <td>${start + i + 1}</td>
-            <td>${u.name || ""}</td>
-            <td>${u.email || ""}</td>
-            <td>${u.phone || ""}</td>
-            <td>
-                <button class="small" onclick="deleteUser('${d.id}')">Delete</button>
-            </td>
-        </tr>`;
-            });
-
-            userPageInfo.innerText =
-                `Page ${userPage + 1} / ${Math.ceil(userDocs.length / userPageSize)}`;
-        }
-
-        function nextUserPage() {
-            if ((userPage + 1) * userPageSize < userDocs.length) {
-                userPage++;
-                renderUserPage();
-            }
-        }
-
-        function prevUserPage() {
-            if (userPage > 0) {
-                userPage--;
-                renderUserPage();
-            }
-        }
-
-        async function deleteUser(id) {
-            if (!confirm("Delete this user?")) return;
-            await db.collection("users").doc(id).delete();
-            await loadUserTable();
-        }
-
-        function searchUsers() {
-            const q = document.getElementById("userSearch").value.toLowerCase();
-            userTable.innerHTML = "";
-
-            const filtered = userDocs.filter(d => {
-                const u = d.data();
-                return (
-                    (u.name || "").toLowerCase().includes(q) ||
-                    (u.email || "").toLowerCase().includes(q) ||
-                    (u.phone || "").toLowerCase().includes(q)
-                );
-            });
-
-            const start = userPage * userPageSize;
-            const end = start + userPageSize;
-
-            filtered.slice(start, end).forEach((d, i) => {
-                const u = d.data();
-                userTable.innerHTML += `
-        <tr>
-            <td>${start + i + 1}</td>
-            <td>${u.name || ""}</td>
-            <td>${u.email || ""}</td>
-            <td>${u.phone || ""}</td>
-            <td>
-                <button class="small" onclick="deleteUser('${d.id}')">Delete</button>
-            </td>
-        </tr>`;
-            });
-
-            userPageInfo.innerText =
-                `Showing ${filtered.length} users`;
-        }
-
-        /* ================= ADD AGENT ================= */
-        async function addAgent() {
-            const name = agentName.value.trim();
-            const email = agentEmail.value.trim();
-            const phone = agentPhone.value.trim();
-            const password = agentPassword.value.trim();
-
-            if (!name || !email || !password) {
-                alert("Name, Email and Password required");
-                return;
-            }
-
-            showLoader();
-            try {
-                const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
-                const secondaryAuth = secondaryApp.auth();
-                const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
-                await db.collection("agents").doc(cred.user.uid).set({
-                    id: cred.user.uid,
-                    name, email, phone,
-                    role: "agent",
-                    isActive: true,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                agentName.value = agentEmail.value = agentPhone.value = agentPassword.value = "";
-                await loadAgents();
-                await loadAgentTable();   // 🔹 refresh list
-                alert("Agent created successfully");
-            } catch (e) {
-                alert(e.message);
-            }
-            hideLoader();
-        }
-
-        // Live stats
-        function liveStats() {
-            db.collection("raffles").onSnapshot(snap => {
-                let today = 0, week = 0; let agents = {}; let daily = {};
-                snap.docs.forEach(d => {
-                    const data = d.data(); const date = data.createdAt?.toDate?.(); if (!date) return;
-                    if (date >= startOfToday()) today++; if (date >= startOfWeek()) week++;
-                    if (date >= startOfToday()) agents[data.agentName] = (agents[data.agentName] || 0) + 1;
-                    const key = date.toISOString().slice(0, 10); daily[key] = (daily[key] || 0) + 1;
-                });
-                todayCount.innerText = today; weekCount.innerText = week;
-                renderCharts(daily, agents);
-            });
-            db.collection("users").get().then(snap => userCount.innerText = snap.size);
-            db.collection("agents").get().then(snap => agentCount.innerText = snap.size);
-        }
-
-        // Charts
-        function renderCharts(daily, agents) {
-            new Chart(dailyChart, { type: "line", data: { labels: Object.keys(daily), datasets: [{ label: "Entries", data: Object.values(daily) }] } });
-            new Chart(agentChart, { type: "bar", data: { labels: Object.keys(agents), datasets: [{ label: "Today", data: Object.values(agents) }] } });
-        }
-
-        /* ================= AGENT DROPDOWN ================= */
-        async function loadAgents() {
-            const snap = await db.collection("agents").get();
-
-            agentSelect.innerHTML = '<option value="">All</option>';
-            snap.docs.forEach(d => {
-                agentSelect.innerHTML += `<option value="${d.id}">${d.data().name}</option>`;
-            });
-        }
-
-        /* ================= AGENT LIST + PAGINATION ================= */
         let agentDocs = [], agentPage = 0;
         const pageSize = 5;
 
-        async function loadAgentTable() {
-            showLoader();
-            const snap = await db.collection("agents")
-                .orderBy("createdAt", "desc").get();
-
-            agentDocs = snap.docs;
-            agentPage = 0;
-            renderAgentPage();
-            hideLoader();
+        // ---------------- UAE TIME HELPERS ----------------
+        function uaeStartOfDay(dateInput) {
+            const d = new Date(dateInput);
+            return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0 - 4, 0, 0, 0));
         }
 
-        function renderAgentPage() {
+        function uaeEndOfDay(dateInput) {
+            const d = new Date(dateInput);
+            return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23 - 4, 59, 59, 999));
+        }
+
+        function uaeDaysAgo(days) {
+            const d = new Date();
+            d.setDate(d.getDate() - days);
+            return d;
+        }
+
+        function generateOtherPermutations(digits) {
+            const result = new Set();
+            function permute(chars, l, r) {
+                if (l === r) { result.add(chars.join("")); }
+                else {
+                    for (let i = l; i <= r; i++) {
+                        [chars[l], chars[i]] = [chars[i], chars[l]];
+                        permute(chars, l + 1, r);
+                        [chars[l], chars[i]] = [chars[i], chars[l]];
+                    }
+                }
+            }
+            permute(digits.split(""), 0, digits.length - 1);
+            result.delete(digits);
+            result.delete(digits.split("").reverse().join(""));
+            return Array.from(result);
+        }
+
+        // ---------------- DASHBOARD COUNTS ----------------
+        window.loadDashboard = async function () {
+            try {
+                showLoader();
+
+                // Today raffle count
+                const todayStart = uaeStartOfDay(new Date());
+                const todayEnd = uaeEndOfDay(new Date());
+                const todaySnap = await getCountFromServer(query(
+                    collection(db, "raffles"),
+                    where("createdAt", ">=", todayStart),
+                    where("createdAt", "<=", todayEnd)
+                ));
+                document.getElementById("todayCount").innerText = todaySnap.data().count;
+
+                // Last 7 days raffle count
+                const weekStart = uaeStartOfDay(uaeDaysAgo(6));
+                const weekEnd = todayEnd;
+                const weekSnap = await getCountFromServer(query(
+                    collection(db, "raffles"),
+                    where("createdAt", ">=", weekStart),
+                    where("createdAt", "<=", weekEnd)
+                ));
+                document.getElementById("weekCount").innerText = weekSnap.data().count;
+
+                // Agents count
+                const agentSnap = await getCountFromServer(collection(db, "agents"));
+                document.getElementById("agentCount").innerText = agentSnap.data().count;
+
+                // Users count
+                const userSnap = await getCountFromServer(collection(db, "users"));
+                document.getElementById("userCount").innerText = userSnap.data().count;
+
+                // Load tables and stats
+                await loadAgents();
+                await loadAgentTable();
+                await loadUserTable();
+                await liveStats();
+
+            } catch (err) {
+                console.error("Error loading dashboard:", err);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // ---------------- AGENT DROPDOWN ----------------
+        window.loadAgents = async function () {
+            const snap = await getDocs(collection(db, "agents"));
+            agentDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            const agentSelect = document.getElementById("agentSelect");
+            agentSelect.innerHTML = '<option value="">All</option>';
+            agentDocs.forEach(a => {
+                const opt = document.createElement("option");
+                opt.value = a.id;
+                opt.text = a.name;
+                agentSelect.appendChild(opt);
+            });
+        }
+
+        // ---------------- AGENT TABLE ----------------
+        window.loadAgentTable = async function () {
+            const snap = await getDocs(query(collection(db, "agents"), orderBy("createdAt", "desc")));
+            agentDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            agentPage = 0;
+            renderAgentPage();
+        }
+
+        window.renderAgentPage = function () {
+            const agentTable = document.getElementById("agentTable");
             agentTable.innerHTML = "";
             const start = agentPage * pageSize;
             const end = start + pageSize;
-
-            agentDocs.slice(start, end).forEach((d, i) => {
-                const a = d.data();
-                agentTable.innerHTML += `
-      <tr>
+            agentDocs.slice(start, end).forEach((a, i) => {
+                agentTable.innerHTML += `<tr>
         <td>${start + i + 1}</td>
-        <td>${a.name || ""}</td>
-        <td>${a.email}</td>
+        <td>${a.name}</td>
+        <td>${a.email || ""}</td>
         <td>${a.phone || ""}</td>
         <td>${a.isActive === false ? "Inactive" : "Active"}</td>
         <td>
           <button class="small" onclick="resetPassword('${a.email}')">Reset</button>
-          <button class="small" onclick="toggleAgent('${d.id}', ${a.isActive !== false})">
-  ${a.isActive === false ? 'Enable' : 'Disable'}
-</button>
+          <button class="small" onclick="toggleAgent('${a.id}', ${a.isActive !== false})">
+            ${a.isActive === false ? "Enable" : "Disable"}
+          </button>
         </td>
       </tr>`;
             });
-
-            agentPageInfo.innerText =
-                `Page ${agentPage + 1} / ${Math.ceil(agentDocs.length / pageSize)}`;
+            document.getElementById("agentPageInfo").innerText = `Page ${agentPage + 1} / ${Math.ceil(agentDocs.length / pageSize)}`;
         }
 
-        function nextAgentPage() {
-            if ((agentPage + 1) * pageSize < agentDocs.length) {
-                agentPage++; renderAgentPage();
-            }
+        window.nextAgentPage = function () {
+            if ((agentPage + 1) * pageSize < agentDocs.length) { agentPage++; renderAgentPage(); }
         }
-        function prevAgentPage() {
-            if (agentPage > 0) {
-                agentPage--; renderAgentPage();
-            }
+        window.prevAgentPage = function () {
+            if (agentPage > 0) { agentPage--; renderAgentPage(); }
         }
 
-        /* ================= AGENT ACTIONS ================= */
-        function resetPassword(email) {
-            auth.sendPasswordResetEmail(email)
-                .then(() => alert("Password reset email sent"));
+        window.resetPassword = function (email) {
+            sendPasswordResetEmail(auth, email).then(() => alert("Password reset email sent"));
         }
 
-        async function deleteAgent(id) {
-            if (!confirm("Disable this agent?")) return;
-            await db.collection("agents").doc(id).update({ isActive: false });
+        window.toggleAgent = async function (agentId, currentlyActive) {
+            if (!confirm(`${currentlyActive ? "Disable" : "Enable"} this agent?`)) return;
+            showLoader();
+            await updateDoc(doc(db, "agents", agentId), { isActive: !currentlyActive });
             await loadAgents();
             await loadAgentTable();
+            hideLoader();
+            alert(`Agent ${currentlyActive ? "Disabled" : "Enabled"} successfully`);
+        }
+        let lastUserDoc = null;
+
+
+        // ---------------- USER TABLE ----------------
+        window.loadUserTable = async function (page = 1) {
+            showLoader();
+
+            let q = query(
+                collection(db, "users"),
+                orderBy("createdAt", "desc"),
+                limit(userPageSize)
+            );
+
+            if (lastUserDoc && page > 1) {
+                q = query(
+                    collection(db, "users"),
+                    orderBy("createdAt", "desc"),
+                    startAfter(lastUserDoc),
+                    limit(userPageSize)
+                );
+            }
+
+            const snap = await getDocs(q);
+            userDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // Track the last document for the next page
+            lastUserDoc = snap.docs[snap.docs.length - 1];
+
+            renderUserPage();
+            hideLoader();
         }
 
-        async function toggleAgent(agentId, currentlyActive) {
-            const action = currentlyActive ? "Disable" : "Enable";
+        window.renderUserPage = function () {
+            const userTable = document.getElementById("userTable");
+            userTable.innerHTML = "";
 
-            if (!confirm(`${action} this agent?`)) return;
-
-            showLoader();
-            try {
-                await db.collection("agents").doc(agentId).update({
-                    isActive: !currentlyActive
-                });
-
-                await loadAgents();
-                await loadAgentTable();
-
-                alert(`Agent ${action}d successfully`);
-            } catch (e) {
-                alert("Failed to update agent status");
-            } finally {
-                hideLoader();
+            userDocs.forEach((u, i) => {
+                userTable.innerHTML += `<tr>
+            <td>${i + 1}</td>
+            <td>${u.name || ""}</td>
+            <td>${u.email || ""}</td>
+            <td>${u.phone || ""}</td>
+            <td><button class="small" onclick="deleteUser('${u.id}')">Delete</button></td>
+        </tr>`;
+            });
+        }
+        let currentUserPage = 1;
+        window.nextUserPage = function () {
+            currentUserPage++;
+            loadUserTable(currentUserPage);
+        }
+        window.prevUserPage = function () {
+            if (currentUserPage > 1) {
+                currentUserPage--;
+                // Reset lastUserDoc for proper startAfter
+                // Optionally, you can track last doc of previous page
+                loadUserTable(currentUserPage);
             }
         }
 
-        // Filter & preview
-        async function filterEntries() {
+        window.deleteUser = async function (id) {
+            if (!confirm("Delete this user?")) return;
+            await deleteDoc(doc(db, "users", id));
+            await loadUserTable();
+        }
+
+        // ---------------- LIVE STATS ----------------
+        window.liveStats = async function () {
+            const todayStart = uaeStartOfDay(new Date());
+            const todayEnd = uaeEndOfDay(new Date());
+            const snap = await getCountFromServer(query(
+                collection(db, "raffles"),
+                where("createdAt", ">=", todayStart),
+                where("createdAt", "<=", todayEnd)
+            ));
+            const today = snap.data().count;
+            document.getElementById("todayCount").innerText = today;
+        }
+
+
+        // ---------------- FILTER ENTRIES ----------------
+        window.filterEntries = async function () {
             showLoader();
             try {
-                const agent = agentSelect.value;
+                const agent = document.getElementById("agentSelect").value;
+                const userPhone = document.getElementById("userPhone").value.trim();
+                const startVal = document.getElementById("startDate").value;
+                const endVal = document.getElementById("endDate").value;
 
-                let start = startDate.value ? new Date(startDate.value) : null;
-                let end = endDate.value ? new Date(endDate.value) : null;
+                if (!startVal || !endVal) { alert("Select BOTH dates"); return; }
 
-                // ✅ Normalize date range
-                if (start) {
-                    start.setHours(0, 0, 0, 0); // start of day
-                }
-                if (end) {
-                    end.setHours(23, 59, 59, 999); // end of day
-                }
+                const start = uaeStartOfDay(new Date(startVal));
+                const end = uaeEndOfDay(new Date(endVal));
+                let ref = collection(db, "raffles");
 
-                entryTable.innerHTML = "";
-                reportData = {};
+                let q = query(ref);
+                if (agent) q = query(q, where("agentId", "==", agent));
+                if (userPhone) q = query(q, where("phone", "==", userPhone));
+                q = query(q, where("createdAt", ">=", start), where("createdAt", "<=", end));
 
-                let ref;
-                ref = db.collection("raffles");
-                if (agent) ref = ref.where("agentId", "==", agent);
-
-
-                const snap = await ref.get();
-
-                snap.docs.forEach(d => {
-                    const data = d.data();
-                    const date = data.createdAt?.toDate?.();
-
-                    if (!date) return;
-
-                    // ✅ Proper date range check
-                    if (start && date < start) return;
-                    if (end && date > end) return;
-
-                    reportData[data.raffleId] = data;
-                });
-
+                const snap = await getDocs(q);
+                reportData = snap.docs.map(d => d.data());
                 renderPreview();
 
-            } catch (e) {
-                console.error(e);
-                alert("Error loading entries");
-            } finally {
-                hideLoader();
-            }
+            } catch (err) { console.error(err); alert("Error loading entries"); }
+            finally { hideLoader(); }
         }
 
-        function renderPreview() {
+        // ---------------- RENDER PREVIEW ----------------
+        window.renderPreview = function () {
             const winningDigitVal = winningDigit.value.trim();
             entryTable.innerHTML = "";
             let serial = 1;
@@ -655,8 +590,8 @@
             }
         }
 
-        // Excel export
-        function exportExcel() {
+        // ---------------- EXPORT EXCEL ----------------
+        window.exportExcel = function () {
             showLoader();
             try {
                 const winningDigitVal = winningDigit.value.trim();
@@ -689,16 +624,21 @@
             finally { hideLoader(); }
         }
 
-        // Load dashboard on page load
-        window.onload = loadDashboard;
-
-        function logout() {
-            auth.signOut().then(() => {
+        // ---------------- LOGOUT ----------------
+        window.logout = function () {
+            signOut(auth).then(() => {
                 localStorage.removeItem("adminUser");
                 window.location.href = "index.html";
             });
         }
+
+        // ---------------- LOAD DASHBOARD ON PAGE LOAD ----------------
+        window.onload = loadDashboard;
+
     </script>
+
+
+
 
 </body>
 
