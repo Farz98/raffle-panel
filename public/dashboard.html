@@ -242,6 +242,46 @@
         </table>
 
     </div>
+    <div class="panel">
+        <h3>🎯 Winning Digit Analytics</h3>
+
+        <label>From:</label>
+        <input type="date" id="digitStart">
+
+        <label>To:</label>
+        <input type="date" id="digitEnd">
+
+        <button onclick="loadDigitStats()">Generate</button>
+
+        <div style="display:flex;gap:40px;margin-top:20px">
+            <div>
+                <h4>🔥 Top 5 Digits</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Digits</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="topDigits"></tbody>
+                </table>
+            </div>
+
+            <div>
+                <h4>❄️ Least 5 Digits</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Digits</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leastDigits"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
@@ -675,7 +715,6 @@
                         entryTable.innerHTML += `<tr>
           <td>${serial++}</td>
           <td>${row.raffleId}</td>
-          <td>${row.drawId}</td>
           <td>${row.agentName}</td>
           <td>${row.name || ""}</td>
           <td>${row.phone || ""}</td>
@@ -724,6 +763,102 @@
             } catch (e) { console.error(e); alert("Error exporting Excel"); }
             finally { hideLoader(); }
         }
+
+        window.loadDigitStats = async function () {
+            showLoader();
+            try {
+                const startVal = document.getElementById("digitStart").value;
+                const endVal = document.getElementById("digitEnd").value;
+
+                if (!startVal || !endVal) {
+                    alert("Select both dates");
+                    return;
+                }
+
+                const start = uaeStartOfDay(new Date(startVal));
+                const end = uaeEndOfDay(new Date(endVal));
+
+                const q = query(
+                    collection(db, "raffles"),
+                    where("createdAt", ">=", start),
+                    where("createdAt", "<=", end)
+                );
+
+                const snap = await getDocs(q);   // 🔥 ONE read operation
+
+                const groupCount = {};
+
+                snap.forEach(doc => {
+                    const d = doc.data().digits;
+                    if (!d) return;
+
+                    const key = getDigitGroupKey(d);   // 321 → 123
+
+                    groupCount[key] = (groupCount[key] || 0) + 1;
+                });
+                function getDigitGroupKey(digits) {
+                    return digits.split("").sort().join("");   // 321 → 123
+                }
+
+
+
+                renderDigitStats(groupCount);
+
+
+            } catch (err) {
+                console.error(err);
+                alert("Failed to load digit stats");
+            }
+            finally {
+                hideLoader();
+            }
+        };
+
+        function renderDigitStats(map) {
+
+            const entries = Object.entries(map)
+                .map(([key, count]) => ({
+                    group: key,
+                    winner: key,     // 123 will represent group
+                    count
+                }));
+
+            // Sort high → low
+            const sortedDesc = [...entries].sort((a, b) => b.count - a.count);
+
+            // Sort low → high
+            const sortedAsc = [...entries].sort((a, b) => a.count - b.count);
+
+            const top5 = sortedDesc.slice(0, 5);
+            const least5 = sortedAsc.slice(0, 5);
+
+            const topBody = document.getElementById("topDigits");
+            const leastBody = document.getElementById("leastDigits");
+
+            topBody.innerHTML = "";
+            leastBody.innerHTML = "";
+
+            top5.forEach(d => {
+                topBody.innerHTML += `
+            <tr>
+                <td>${d.winner}</td>
+                <td>${d.count}</td>
+            </tr>
+        `;
+            });
+
+            least5.forEach(d => {
+                leastBody.innerHTML += `
+            <tr>
+                <td>${d.winner}</td>
+                <td>${d.count}</td>
+            </tr>
+        `;
+            });
+        }
+
+
+
 
         // ---------------- LOGOUT ----------------
         window.logout = function () {
