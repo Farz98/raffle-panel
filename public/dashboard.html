@@ -245,7 +245,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-        import { getFirestore, collection, getCountFromServer, query, where, getDocs, orderBy, doc, deleteDoc, updateDoc, serverTimestamp, limit, startAfter, or } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+        import { getFirestore, collection, getCountFromServer, query, where, getDocs, setDoc, orderBy, doc, deleteDoc, updateDoc, serverTimestamp, limit, startAfter, or } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
         import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js";
 
         // ---------------- CONFIG ----------------
@@ -530,6 +530,65 @@
             await deleteDoc(doc(db, "users", id));
             await loadUserTable();
         }
+
+        window.addAgent = async function () {
+
+            const name = agentName.value.trim();
+            const email = agentEmail.value.trim();
+            const phone = agentPhone.value.trim();
+            const password = agentPassword.value.trim();
+
+            if (!name || !email || !password) {
+                alert("Name, Email and Password required");
+                return;
+            }
+
+            showLoader();
+
+            try {
+                // 🔹 Secondary Firebase App (same as your old code)
+                const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+                const secondaryAuth = getAuth(secondaryApp);
+
+                // 🔹 Create Auth User
+                const cred = await createUserWithEmailAndPassword(
+                    secondaryAuth,
+                    email,
+                    password
+                );
+
+                // 🔹 Write to Firestore
+                await setDoc(doc(db, "agents", cred.user.uid), {
+                    id: cred.user.uid,
+                    name,
+                    email,
+                    phone,
+                    role: "agent",
+                    isActive: true,
+                    createdAt: serverTimestamp()
+                });
+
+                // 🔹 Cleanup secondary app
+                await secondaryAuth.signOut();
+
+                // 🔹 Clear form
+                agentName.value = "";
+                agentEmail.value = "";
+                agentPhone.value = "";
+                agentPassword.value = "";
+
+                // 🔹 Refresh UI
+                await loadAgents();
+                await loadAgentTable();
+
+                alert("Agent created successfully");
+
+            } catch (e) {
+                alert(e.message);
+            }
+
+            hideLoader();
+        };
 
         // ---------------- LIVE STATS ----------------
         window.liveStats = async function () {
