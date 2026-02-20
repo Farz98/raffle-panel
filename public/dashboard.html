@@ -255,7 +255,7 @@
 
         <div style="display:flex;gap:40px;margin-top:20px">
             <div>
-                <h4>🔥 Top 5 Digits</h4>
+                <h4>🔥 Top 15 Digits</h4>
                 <table>
                     <thead>
                         <tr>
@@ -268,7 +268,7 @@
             </div>
 
             <div>
-                <h4>❄️ Least 5 Digits</h4>
+                <h4>❄️ Least 15 Digits</h4>
                 <table>
                     <thead>
                         <tr>
@@ -829,8 +829,8 @@
             // Sort low → high
             const sortedAsc = [...entries].sort((a, b) => a.count - b.count);
 
-            const top5 = sortedDesc.slice(0, 5);
-            const least5 = sortedAsc.slice(0, 5);
+            const top5 = sortedDesc.slice(0, 15);
+            const least5 = sortedAsc.slice(0, 15);
 
             const topBody = document.getElementById("topDigits");
             const leastBody = document.getElementById("leastDigits");
