@@ -282,6 +282,69 @@
         </div>
     </div>
 
+    <div class="panel">
+        <h3>📱 User Ticket Analytics</h3>
+
+        <div style="display:flex;gap:20px;align-items:end;flex-wrap:wrap;">
+            <div>
+                <label>From</label><br />
+                <input type="date" id="userFromDate">
+            </div>
+
+            <div>
+                <label>To</label><br />
+                <input type="date" id="userToDate">
+            </div>
+
+            <button onclick="loadUserDateStats()">Load</button>
+            <button onclick="exportUserExcel()">Export Excel</button>
+        </div>
+
+        <table style="margin-top:20px;">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Emirates ID</th>
+                    <th>Total Tickets</th>
+                </tr>
+            </thead>
+            <tbody id="userDateTable"></tbody>
+        </table>
+    </div>
+
+    <div class="panel">
+        <h3>👥 Agent Ticket Analytics</h3>
+
+        <div style="display:flex;gap:20px;align-items:end;flex-wrap:wrap;">
+            <div>
+                <label>From</label><br />
+                <input type="date" id="agentFromDate">
+            </div>
+
+            <div>
+                <label>To</label><br />
+                <input type="date" id="agentToDate">
+            </div>
+
+            <button onclick="loadAgentDateStats()">Load</button>
+            <button onclick="exportAgentExcel()">Export Excel</button>
+        </div>
+
+        <table style="margin-top:20px;">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Agent Name</th>
+                    <th>Total Tickets</th>
+                </tr>
+            </thead>
+            <tbody id="agentDateTable"></tbody>
+        </table>
+    </div>
+
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
@@ -813,6 +876,180 @@
                 hideLoader();
             }
         };
+
+        window.loadAgentDateStats = async function () {
+
+            const from = document.getElementById("agentFromDate").value;
+            const to = document.getElementById("agentToDate").value;
+
+            if (!from || !to) return alert("Select both dates");
+
+            showLoader();
+
+            try {
+
+                const fromDate = new Date(from);
+                const toDate = new Date(to);
+                toDate.setHours(23, 59, 59, 999);
+
+                const snap = await getDocs(
+                    query(
+                        collection(db, "raffles"),
+                        where("createdAt", ">=", fromDate),
+                        where("createdAt", "<=", toDate)
+                    )
+                );
+
+                const agentMap = {};
+
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if (!d.agentId) return;
+
+                    if (!agentMap[d.agentId]) {
+                        agentMap[d.agentId] = {
+                            agentName: d.agentName || "Unknown",
+                            total: 0
+                        };
+                    }
+
+                    agentMap[d.agentId].total++;
+                });
+
+                const table = document.getElementById("agentDateTable");
+                table.innerHTML = "";
+
+                const sorted = Object.values(agentMap)
+                    .sort((a, b) => b.total - a.total);
+
+                sorted.forEach((a, i) => {
+                    table.innerHTML += `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${a.agentName}</td>
+                    <td>${a.total}</td>
+                </tr>
+            `;
+                });
+
+                window._agentExport = sorted;
+
+            } catch (err) {
+                console.error(err);
+                alert("Failed to load agent stats");
+            }
+            finally {
+                hideLoader();
+            }
+        };
+
+        window.loadUserDateStats = async function () {
+
+            const from = document.getElementById("userFromDate").value;
+            const to = document.getElementById("userToDate").value;
+
+            if (!from || !to) return alert("Select both dates");
+
+            showLoader();
+
+            try {
+
+                const fromDate = new Date(from);
+                const toDate = new Date(to);
+                toDate.setHours(23, 59, 59, 999);
+
+                const snap = await getDocs(
+                    query(
+                        collection(db, "raffles"),
+                        where("createdAt", ">=", fromDate),
+                        where("createdAt", "<=", toDate)
+                    )
+                );
+
+                const userMap = {};
+
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if (!d.phone) return;
+
+                    if (!userMap[d.phone]) {
+                        userMap[d.phone] = {
+                            name: d.name || "",
+                            phone: d.phone,
+                            email: d.email || "",
+                            emiratesId: d.emiratesId || "",
+                            total: 0
+                        };
+                    }
+
+                    userMap[d.phone].total++;
+                });
+
+                const table = document.getElementById("userDateTable");
+                table.innerHTML = "";
+
+                const sorted = Object.values(userMap)
+                    .sort((a, b) => b.total - a.total);
+
+                sorted.forEach((u, i) => {
+                    table.innerHTML += `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${u.name}</td>
+                    <td>${u.phone}</td>
+                    <td>${u.email}</td>
+                    <td>${u.emiratesId}</td>
+                    <td>${u.total}</td>
+                </tr>
+            `;
+                });
+
+                window._userExport = sorted;
+
+            } catch (err) {
+                console.error(err);
+                alert("Failed to load user stats");
+            }
+            finally {
+                hideLoader();
+            }
+        };
+
+        window.exportAgentExcel = function () {
+
+            if (!window._agentExport) return alert("Load agent stats first");
+
+            let csv = "Agent Name,Total Tickets\n";
+
+            window._agentExport.forEach(a => {
+                csv += `${a.agentName},${a.total}\n`;
+            });
+
+            downloadCSV(csv, "agent_stats.csv");
+        };
+
+        window.exportUserExcel = function () {
+
+            if (!window._userExport) return alert("Load user stats first");
+
+            let csv = "Name,Phone,Email,Emirates ID,Total Tickets\n";
+
+            window._userExport.forEach(u => {
+                csv += `${u.name},${u.phone},${u.email},${u.emiratesId},${u.total}\n`;
+            });
+
+            downloadCSV(csv, "user_stats.csv");
+        };
+
+        function downloadCSV(content, fileName) {
+            const blob = new Blob([content], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
 
         function renderDigitStats(map) {
 
