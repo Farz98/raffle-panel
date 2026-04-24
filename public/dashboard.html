@@ -123,6 +123,13 @@
 
     <h1>Raffle Admin Dashboard</h1>
 
+    <div style="margin-bottom:20px;">
+        <button onclick="goToDrawPage()"
+            style="background:#2ecc71;color:white;padding:10px 15px;border:none;border-radius:6px;cursor:pointer;">
+            🎯 Go to Draw Page
+        </button>
+    </div>
+
     <!-- Loader -->
     <div id="loader">
         <div class="spinner"></div>
@@ -1104,14 +1111,14 @@
                 window.location.href = "index.html";
             });
         }
+        window.goToDrawPage = function () {
+            window.location.href = "draw.html";
+        };
 
         // ---------------- LOAD DASHBOARD ON PAGE LOAD ----------------
         window.onload = loadDashboard;
 
     </script>
-
-
-
 
 </body>
 
