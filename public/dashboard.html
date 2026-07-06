@@ -209,33 +209,6 @@
             </div>
         </div>
 
-        <!-- REPORTS -->
-        <h3>Reports</h3>
-        <label>Agent:</label>
-        <select id="agentSelect">
-            <option value="">All</option>
-        </select>
-        <label>User Phone:</label>
-        <input type="text" id="userPhone" placeholder="Enter phone number">
-        <label>Start:</label><input type="date" id="startDate">
-        <label>End:</label><input type="date" id="endDate">
-        <label>Winning Digit:</label><input id="winningDigit" maxlength="3" placeholder="Optional">
-        <button onclick="filterEntries()">Generate</button>
-        <button onclick="exportExcel()">Export Excel</button>
-        <table>
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Raffle ID</th>
-                    <th>Agent</th>
-                    <th>Name</th>
-                    <th>Phone</th>
-                    <th>Digits</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody id="entryTable"></tbody>
-        </table>
 
     </div>
 
