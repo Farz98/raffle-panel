@@ -157,6 +157,17 @@
             </div>
         </div>
 
+        <!-- ===================== ADD AGENT ===================== -->
+        <div class="panel">
+            <h3>➕ Add Agent</h3>
+            <input id="agentName" placeholder="Agent Name">
+            <input id="agentEmail" placeholder="Email">
+            <input id="agentPhone" placeholder="Phone">
+            <input id="agentPassword" type="password" placeholder="Password">
+            <button onclick="addAgent()">Create Agent</button>
+        </div>
+
+
         <!-- ===================== USER LIST ===================== -->
         <div class="panel">
             <input id="userSearch" placeholder="Search name / email / phone" />
@@ -237,6 +248,45 @@
             <tbody id="entryTable"></tbody>
         </table>
 
+    </div>
+    <div class="panel">
+        <h3>🎯 Winning Digit Analytics</h3>
+
+        <label>From:</label>
+        <input type="date" id="digitStart">
+
+        <label>To:</label>
+        <input type="date" id="digitEnd">
+
+        <button onclick="loadDigitStats()">Generate</button>
+
+        <div style="display:flex;gap:40px;margin-top:20px">
+            <div>
+                <h4>🔥 Top 15 Digits</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Digits</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="topDigits"></tbody>
+                </table>
+            </div>
+
+            <div>
+                <h4>❄️ Least 15 Digits</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Digits</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leastDigits"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div class="panel">
