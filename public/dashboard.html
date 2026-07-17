@@ -437,14 +437,14 @@
             const snap = await getDocs(collection(db, "agents"));
             agentDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            const agentSelect = document.getElementById("agentSelect");
-            agentSelect.innerHTML = '<option value="">All</option>';
-            agentDocs.forEach(a => {
-                const opt = document.createElement("option");
-                opt.value = a.id;
-                opt.text = a.name;
-                agentSelect.appendChild(opt);
-            });
+            // const agentSelect = document.getElementById("agentSelect");
+            // agentSelect.innerHTML = '<option value="">All</option>';
+            // agentDocs.forEach(a => {
+            //     const opt = document.createElement("option");
+            //     opt.value = a.id;
+            //     opt.text = a.name;
+            //     agentSelect.appendChild(opt);
+            // });
         }
 
         // ---------------- AGENT TABLE ----------------
